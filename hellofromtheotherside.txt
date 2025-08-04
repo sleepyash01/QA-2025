@@ -1,0 +1,5 @@
+<<<<<<< HEAD
+Hello Team, let's start collaborating with Git!
+=======
+HI
+>>>>>>> a2cbf3126511edc53d1c102e115eb2d944528bc8
