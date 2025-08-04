@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <title>لوحة الإرساليات</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@700;900&display=swap');
+    body {
+      background: linear-gradient(135deg, #232526 0%, #414345 100%);
+      font-family: 'Cairo', 'Segoe UI', sans-serif;
+      color: #fff;
+      margin: 0;
+      padding: 0;
+    }
+    .header {
+      background: rgba(30,30,30,0.97);
+      padding: 30px 20px 10px 20px;
+      border-radius: 22px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.28);
+      max-width: 900px;
+      margin: 40px auto 24px auto;
+      text-align: center;
+    }
+    #shipmentList {
+      max-width: 900px;
+      margin: 0 auto 40px auto;
+    }
+    .shipment {
+      background: rgba(255,255,255,0.04);
+      border-radius: 16px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+      margin-bottom: 24px;
+      padding: 18px 18px 12px 18px;
+      transition: box-shadow 0.2s;
+    }
+    .shipment:hover {
+      box-shadow: 0 4px 18px rgba(255,165,0,0.18);
+    }
+    .shipment img {
+      max-width: 180px;
+      border-radius: 10px;
+      margin-bottom: 10px;
+      display: block;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .shipment p {
+      margin: 8px 0 0 0;
+      font-size: 1.1em;
+      text-align: center;
+    }
+    .shipment .date {
+      margin-top: 10px;
+      font-size: 1em;
+    }
+    button {
+      margin: 7px 4px 0 4px;
+      padding: 7px 18px;
+      border-radius: 8px;
+      border: none;
+      font-family: 'Cairo', 'Segoe UI', sans-serif;
+      font-weight: bold;
+      font-size: 1em;
+      cursor: pointer;
+      background: linear-gradient(90deg, #ffa500 60%, #6dd5fa 100%);
+      color: #222;
+      transition: background 0.2s, transform 0.2s;
+    }
+    button:hover {
+      background: linear-gradient(90deg, #6dd5fa 60%, #ffa500 100%);
+      transform: scale(1.07);
+    }
+    .search-box {
+      margin: 18px auto 0 auto;
+      max-width: 400px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255,255,255,0.07);
+      border-radius: 10px;
+      padding: 7px 12px;
+    }
+    .search-box input {
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: 8px;
+      border: none;
+      font-size: 1em;
+      font-family: 'Cairo', 'Segoe UI', sans-serif;
+    }
+    @media (max-width: 900px) {
+      .header, #shipmentList {
+        max-width: 99vw;
+        padding: 0 2vw;
+      }
+      .shipment img {
+        max-width: 95vw;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h2>
+      <img src="document.png" alt="إرساليات" style="width:32px;height:32px;vertical-align:middle;">
+      لوحة متابعة الإرساليات
+    </h2>
+    <div class="search-box">
+      <input type="text" id="searchInput" placeholder="ابحث برقم الهوية أو اسم السائق..." oninput="filterShipments()">
+      <img src="search.png" alt="بحث" style="width:22px;height:22px;vertical-align:middle;">
+    </div>
+  </div>
+  <div id="shipmentList"></div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+    import { getFirestore, collection, getDocs, query, orderBy, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCGvtZwwfH3zcEuSbAsXOktL5e4BnFb6CE",
+      authDomain: "abu-dcb78.firebaseapp.com",
+      projectId: "abu-dcb78",
+      storageBucket: "abu-dcb78.appspot.com",
+      messagingSenderId: "766365119662",
+      appId: "1:766365119662:web:ac0f7ce027ec9ad864e93f"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    let allShipments = [];
+
+    async function loadShipments() {
+      const list = document.getElementById("shipmentList");
+      list.innerHTML = "جارٍ التحميل...";
+
+      const q = query(collection(db, "shipments"), orderBy("timestamp", "desc"));
+      const snapshot = await getDocs(q);
+      list.innerHTML = "";
+      allShipments = [];
+
+      // جلب جميع السائقين مرة واحدة لربط الاسم بالهوية
+      const driversSnap = await getDocs(collection(db, "drivers"));
+      const driversMap = {};
+      driversSnap.forEach(driverDoc => {
+        const d = driverDoc.data();
+        if (d.idNumber) driversMap[d.idNumber] = d.name || "";
+      });
+
+      snapshot.forEach(docSnap => {
+        const data = docSnap.data();
+        const id = data.driverId || "غير معروف";
+        const url = data.imageUrl;
+        const timestamp = data.timestamp;
+        let date = "غير معروف", time = "";
+        if (timestamp && timestamp.toDate) {
+          const d = timestamp.toDate();
+          date = d.toLocaleDateString("ar-EG");
+          time = d.toLocaleTimeString("ar-EG");
+        }
+        const shipmentId = docSnap.id;
+        const driverName = driversMap[id] || "غير معروف";
+        let location = data.location && data.location.lat && data.location.lng
+          ? { lat: data.location.lat, lng: data.location.lng }
+          : null;
+
+        allShipments.push({
+          shipmentId,
+          driverId: id,
+          driverName,
+          imageUrl: url,
+          date,
+          time,
+          location
+        });
+      });
+
+      renderShipments(allShipments);
+    }
+
+    async function getPlaceName(lat, lng) {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`);
+        const data = await res.json();
+        if (data && data.display_name) {
+          return data.display_name;
+        }
+      } catch {}
+      return `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+    }
+
+    async function renderShipments(shipments) {
+      const list = document.getElementById("shipmentList");
+      list.innerHTML = "";
+      for (const shipment of shipments) {
+        let locationHtml = `<span style="color:#aaa;">لا يوجد موقع</span>`;
+        if (shipment.location) {
+          const placeName = await getPlaceName(shipment.location.lat, shipment.location.lng);
+          // رابط يفتح الخريطة مع تحديد الموقع
+          const mapUrl = `https://www.google.com/maps/search/?api=1&query=${shipment.location.lat},${shipment.location.lng}`;
+          locationHtml = `
+            <span>تم التقاط الصورة في 
+              <a href="${mapUrl}" target="_blank" style="color:#00e1ff;font-weight:bold;text-decoration:underline;">
+                ${placeName}
+              </a>
+            </span>
+          `;
+        }
+        const div = document.createElement("div");
+        div.className = "shipment";
+        div.innerHTML = `
+          <img src="${shipment.imageUrl}" alt="shipment" onclick="window.open('${shipment.imageUrl}', '_blank')">
+          <p>
+            ${locationHtml}
+          </p>
+          <p>
+            <img src="driver.png" alt="سائق" style="width:18px;height:18px;vertical-align:middle;">
+            اسم السائق: ${shipment.driverName}
+          </p>
+          <p>
+            <img src="truck.png" alt="شاحنة" style="width:18px;height:18px;vertical-align:middle;">
+            رقم الهوية: ${shipment.driverId}
+          </p>
+          <p class="date">
+            <img src="document.png" alt="تاريخ" style="width:18px;height:18px;vertical-align:middle;">
+            📅 التاريخ: <span style="color:#ffa500">${shipment.date}</span>
+            <span style="color:#fff;font-weight:bold;"> | </span>
+            الوقت: <span style="color:#6dd5fa">${shipment.time}</span>
+          </p>
+          <button class="download-btn" onclick="downloadImage('${shipment.imageUrl}')">
+            <img src="download.png" alt="تحميل" style="width:18px;height:18px;vertical-align:middle;">
+            تحميل
+          </button>
+          <button class="print-btn" onclick="printImage('${shipment.imageUrl}')">
+            <img src="print.png" alt="طباعة" style="width:18px;height:18px;vertical-align:middle;">
+            طباعة
+          </button>
+          <button class="delete-btn" onclick="deleteShipment('${shipment.shipmentId}')">
+            <img src="delete.png" alt="حذف" style="width:18px;height:18px;vertical-align:middle;">
+            حذف
+          </button>
+        `;
+        list.appendChild(div);
+      }
+    }
+
+    window.downloadImage = function(url) {
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "shipment.jpg";
+      link.click();
+    }
+
+    window.printImage = function(url) {
+      const win = window.open("", "_blank");
+      win.document.write(`<img src="${url}" onload="window.print(); window.close()">`);
+    }
+
+    window.filterShipments = function() {
+      const input = document.getElementById("searchInput").value.toLowerCase();
+      const filtered = allShipments.filter(s =>
+        s.driverId.toLowerCase().includes(input) ||
+        s.driverName.toLowerCase().includes(input)
+      );
+      renderShipments(filtered);
+    }
+
+    window.deleteShipment = async function(shipmentId) {
+      if (!confirm("هل أنت متأكد من حذف هذه الإرسالية؟")) return;
+      await deleteDoc(doc(db, "shipments", shipmentId));
+      alert("تم حذف الإرسالية بنجاح");
+      loadShipments();
+    }
+
+    loadShipments();
+  </script>
+</body>
+</html>
