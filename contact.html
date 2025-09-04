@@ -140,7 +140,6 @@
       list.innerHTML = "";
       allShipments = [];
 
-      // جلب جميع السائقين مرة واحدة لربط الاسم بالهوية
       const driversSnap = await getDocs(collection(db, "drivers"));
       const driversMap = {};
       driversSnap.forEach(driverDoc => {
@@ -197,7 +196,6 @@
         let locationHtml = `<span style="color:#aaa;">لا يوجد موقع</span>`;
         if (shipment.location) {
           const placeName = await getPlaceName(shipment.location.lat, shipment.location.lng);
-          // رابط يفتح الخريطة مع تحديد الموقع
           const mapUrl = `https://www.google.com/maps/search/?api=1&query=${shipment.location.lat},${shipment.location.lng}`;
           locationHtml = `
             <span>تم التقاط الصورة في 
@@ -211,9 +209,7 @@
         div.className = "shipment";
         div.innerHTML = `
           <img src="${shipment.imageUrl}" alt="shipment" onclick="window.open('${shipment.imageUrl}', '_blank')">
-          <p>
-            ${locationHtml}
-          </p>
+          <p>${locationHtml}</p>
           <p>
             <img src="driver.png" alt="سائق" style="width:18px;height:18px;vertical-align:middle;">
             اسم السائق: ${shipment.driverName}
@@ -257,11 +253,18 @@
       win.document.write(`<img src="${url}" onload="window.print(); window.close()">`);
     }
 
+    // ✅ FIXED FUNCTION:
     window.filterShipments = function() {
-      const input = document.getElementById("searchInput").value.toLowerCase();
+      const input = document.getElementById("searchInput").value.toLowerCase().trim();
+
+      if (!input) {
+        renderShipments(allShipments); // show all if input is empty
+        return;
+      }
+
       const filtered = allShipments.filter(s =>
-        s.driverId.toLowerCase().includes(input) ||
-        s.driverName.toLowerCase().includes(input)
+        (s.driverId && s.driverId.toLowerCase().includes(input) && s.driverId !== "غير معروف") ||
+        (s.driverName && s.driverName.toLowerCase().includes(input) && s.driverName !== "غير معروف")
       );
       renderShipments(filtered);
     }
